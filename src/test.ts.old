@@ -1,0 +1,268 @@
+// import express from 'express'
+// import bodyParser from 'body-parser'
+// import fs from 'fs'
+// import config from './config'
+
+const express = require('express')
+const bodyParser = require ('body-parser')
+const fs = require ('fs')
+
+const PORT = process.env.PORT || 3000
+
+
+// App Setup
+const app = express()
+app.use(bodyParser.json())
+
+app.get('/', handleIndex)
+app.post('/start', handleStart)
+app.post('/move', handleMove)
+app.post('/end', handleEnd)
+
+app.listen(PORT, () => console.log(`Battlesnake Server listening at http://127.0.0.1:${PORT}`))
+
+
+// Always accessed [y,x]
+
+// Variables
+const possibleMoves = ['up', 'down', 'left', 'right'] 
+// y = Vertical
+// x = Horizontal
+
+var arenaGridHeight;
+var arenaGridWidth;
+var arenaGrid;
+
+var boardData;
+var playerData;
+var foodData;
+var hazardsData;
+var enemyData;
+
+var playerHead;
+var playerBody;
+
+
+var defaultVal = 0.5;
+var foodVal = 1;
+var hazardVal = 0;
+
+
+function updateArena(gameData) {
+  // Get Items
+  boardData = gameData.board;
+
+  // Player Data
+  playerData = gameData.you;
+
+  playerHead = playerData.head;
+  playerBody = playerData.body;
+
+  // Hazard Data
+  hazardData = boardData.hazard;
+
+  // Enemey Data
+  let rawEnemyData = boardData.snakes
+  enemyData = rawEnemyData.slice(1) // Take from the second item, first being "our snake"
+
+  // Food Data
+  foodData = boardData.food
+
+  // Set the board
+  arenaGridHeight = gameData.board.height;
+  arenaGridWidth = gameData.board.width;
+
+ // -------
+
+  // Fill board with default values
+  arenaGrid = Array(arenaGridHeight);
+  for (var i = 0; i < arenaGridHeight; i++) {
+      arenaGrid[i] = Array(arenaGridWidth).fill(defaultVal);
+  }
+
+// --------
+  // Set Enemy Snakes
+  console.log(enemyData)
+
+  if(enemyData) {
+   for(let snakeCount = 0; snakeCount < enemyData.length; snakeCount++){ 
+     
+    let currentSnake = enemyData[snakeCount]
+
+    // Set Current Enemy Head
+    let currentEnemeyHead = currentSnake.head
+    arenaGrid[currentEnemeyHead.y][currentEnemeyHead.x] = 'eH';
+
+    // Set Current Enemy Body
+      let currentEnemeyBody = currentSnake.body
+     for(let i = 1; i < currentEnemeyBody.length; i++){ 
+       let currentItem = currentEnemeyBody[i]
+       arenaGrid[currentItem.y][currentItem.x] = 'e';
+     }
+   }
+  }
+
+// --------
+  // Set Snake
+   for(let i = 0; i < playerBody.length; i++){ 
+   let currentSegment = playerBody[i]
+   arenaGrid[currentSegment.y][currentSegment.x] = 'p' + i;
+ }
+
+// --------
+  // Set Head
+  arenaGrid[playerHead.y][playerHead.x] = 'PH';
+  console.log(playerHead)
+
+// --------
+  // Set Food
+  if(foodData){
+   for(let i = 0; i < foodData.length; i++){ 
+    let currentItem = foodData[i]
+    arenaGrid[currentItem.y][currentItem.x] = foodVal;
+   }
+  }
+
+// --------
+  // Set Hazard
+  if(hazardData) {
+   for(let i = 0; i < hazardData.length; i++){ 
+    let currentItem = hazardData[i]
+    arenaGrid[currentItem.y][currentItem.x] = hazardVal;
+   }
+  }
+
+}
+
+// Get all possible moves
+function getPossibleMoves(currPos){
+ let x = currPos.x;
+ let y = currPos.y;
+
+
+ let px = playerHead.x;
+ let py = playerHead.y;
+
+  // Calculate Moves
+  let moves = {}
+
+  // Quick Boundary Check
+  if( y + 1 < arenaGridHeight){
+    let res = arenaGrid[y+1][x]
+    if(!Number.isNaN(res)) {
+      moves.up = res
+      console.log(`Up: ${res}`)
+    } else {
+      moves.up = 0
+    }
+  }
+
+  if( y - 1 >= 0){
+    let res = arenaGrid[y-1][x]
+    if(!Number.isNaN(res)) {
+      moves.down = res
+      console.log(`Down: ${res}`)
+    } else {
+      moves.down = 0
+    }
+  }
+
+  if( x + 1 < arenaGridWidth){
+    let res = arenaGrid[y][x+1]
+    if(!Number.isNaN(res)) {
+      moves.right = res
+      console.log(`Right: ${res}`)
+    } else {
+      moves.right = 0
+    }
+  }
+
+  if( x - 1 >= 0){
+    let res = arenaGrid[y][x-1]
+    if(!Number.isNaN(res)) {
+      moves.left = res
+      console.log(`Left: ${res}`)
+    } else {
+      moves.left = 0
+    }
+  }
+
+  return moves;
+}
+
+// ==================
+// Handlers
+// ==================
+// Index Handler
+function handleIndex(request, response) {
+  var battlesnakeInfo = {
+    apiversion: '1',
+    author: 'JCSawyer',
+    color: '#888888',
+    head: 'default',
+    tail: 'default'
+  }
+  response.status(200).json(battlesnakeInfo)
+}
+
+// Start Handler
+function handleStart(request, response) {
+  let gameData = request.body;
+
+  // Update Logic
+  updateArena(gameData)
+  console.table(arenaGrid);
+}
+
+
+// Move Hanlder
+function handleMove(request, response) {
+  let gameData = request.body
+
+  updateArena(gameData)
+  console.table(arenaGrid);
+
+  currentPos = playerHead;
+
+  let moves = getPossibleMoves(playerHead); 
+
+  let highestValue = 0;
+  let highestValueDirection = 'up'
+
+
+  console.log(moves)
+
+  for (let direction in moves) {
+    console.log(direction)
+    let moveVal = moves[direction]
+
+    // Check to see if move is the 'best'
+    if(moveVal >= highestValue && !undefined) {
+      highestValue = moveVal
+      highestValueDirection = direction
+    }
+    console.log(`${highestValueDirection} : ${highestValue}`)
+
+  }
+
+  let move = highestValueDirection
+  // Randomly select a possible move
+  // let move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)]
+  // console.log(gameData)
+
+  // Send the move
+  console.log('MOVE: ' + move)
+  response.status(200).send({
+    move: move
+  })
+}
+
+// End Handler
+function handleEnd(request, response) {
+  var gameData = request.body
+
+  console.log('END')
+  response.status(200).send('ok')
+}
+
+
